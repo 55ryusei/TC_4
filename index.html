@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>勤怠管理</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ダークモードトグル -->
+  <button class="theme-toggle" id="themeToggle">🌙</button>
+
+  <div class="logo">
+    <img src="logo.png" alt="勤怠管理ロゴ">
+  </div>
+
+  <div class="container">
+    <h1>勤怠管理</h1>
+
+    <!-- フォーム開始 -->
+    <form id="timeCardForm">
+
+      <div class="form-group">
+        <label for="name">名前</label>
+        <div class="input-wrapper">
+          <input type="text" id="name" required placeholder="従業員名を入力">
+          <button type="button" class="clear-btn" id="clearNameBtn">×</button>
+          <div class="dropdown-menu" id="nameDropdown"></div>
+        </div>
+      </div>
+
+      <div class="form-group" id="normalDateGroup">
+        <label for="dateSingle">月日</label>
+        <input type="date" id="dateSingle" required>
+      </div>
+
+      <div class="form-group hidden" id="paidLeaveYearGroup">
+        <label for="paidLeaveYear">有給用 西暦</label>
+        <input type="number" id="paidLeaveYear" min="2020" max="2100" step="1">
+      </div>
+
+      <div class="form-group hidden" id="multiDateGroup">
+        <label for="dateMulti">月日 (複数入力、カンマ区切り)</label>
+        <input type="text" id="dateMulti" placeholder="例: 03-10, 03-11">
+      </div>
+
+      <div class="form-group">
+        <label for="checkIn">出勤時間</label>
+        <input type="time" id="checkIn" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="checkOut">退勤時間</label>
+        <input type="time" id="checkOut">
+      </div>
+
+      <!-- 有給チェック -->
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="isPaidLeave">
+          有給として登録する
+        </label>
+      </div>
+
+      <!-- フォーム内のボタン -->
+      <div class="btn-group main-buttons">
+        <button type="submit" id="submitBtn" class="btn-primary">送信</button>
+        <button type="button" id="cancelEditBtn" class="btn-secondary hidden">編集キャンセル</button>
+        <button type="button" id="exportBtn" class="btn-dark-success">Excelエクスポート</button>
+        <button type="button" id="clearDataBtn" class="btn-danger">データをクリア</button>
+      </div>
+
+    </form>
+    <!-- フォーム終了 -->
+
+    <!-- バックアップ・リストアのボタン -->
+    <div class="backup-restore-buttons">
+      <button type="button" id="backupBtn" class="btn-success">データをバックアップ</button>
+      <button type="button" id="backupLatestMonthBtn" class="btn-info">最新の月をバックアップ</button>
+      <input type="file" id="restoreFile" style="display: none;">
+      <button type="button" id="restoreBtn" class="btn-warning">データをリストア</button>
+    </div>
+
+    <!-- 検索 -->
+    <div class="form-group">
+      <label for="searchName">名前で検索</label>
+      <div class="input-wrapper">
+        <input type="text" id="searchName" placeholder="名前を入力して検索">
+        <button type="button" class="clear-btn" id="clearSearchBtn">×</button>
+        <div class="dropdown-menu" id="searchDropdown"></div>
+      </div>
+    </div>
+
+    <!-- タイムカード一覧表示 -->
+    <div id="result"></div>
+  </div>
+
+  <!-- エクスポートダイアログ -->
+  <div id="exportDialog" class="ios-dialog" style="display: none;">
+    <div class="ios-dialog-content export-dialog-content">
+      <div class="ios-dialog-header">
+        <div class="ios-dialog-title">Excelエクスポート</div>
+      </div>
+      <div class="export-dialog-body">
+        <!-- 名前フィルター -->
+        <div class="form-group">
+          <label for="exportName">名前フィルター</label>
+          <div class="input-wrapper">
+            <input type="text" id="exportName" class="export-input" placeholder="すべての従業員">
+            <button type="button" class="clear-btn" id="clearExportBtn">×</button>
+            <div class="dropdown-menu" id="exportDropdown"></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="exportType">エクスポート種類</label>
+          <select id="exportType" class="export-select">
+            <option value="all">全データ</option>
+            <option value="latest">最新の月</option>
+            <option value="custom">期間指定</option>
+          </select>
+        </div>
+        
+        <div class="form-group hidden" id="customDateGroup">
+          <label for="exportStartDate">開始日</label>
+          <input type="date" id="exportStartDate" class="export-input">
+          <label for="exportEndDate" style="margin-top: 12px;">終了日</label>
+          <input type="date" id="exportEndDate" class="export-input">
+        </div>
+
+<div class="form-group">
+  <label for="exportWorkType">業務内容</label>
+  <select id="exportWorkType" class="export-select">
+    <option value="通常" selected>通常</option>
+    <option value="スイミング">スイミング</option>
+  </select>
+</div>>
+      </div>
+      <div class="ios-dialog-buttons">
+        <button class="ios-dialog-button" id="exportCancelBtn">キャンセル</button>
+        <button class="ios-dialog-button primary" id="exportConfirmBtn">エクスポート</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
