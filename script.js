@@ -656,7 +656,10 @@ document.getElementById('restoreBtn').addEventListener('click', function() {
   document.getElementById('restoreFile').click();
 });
 document.getElementById('restoreFile').addEventListener('change', function(e) {
-  restoreData(e.target.files[0]);
+  if (e.target.files[0]) {
+    showRestoreDialog(e.target.files[0]);
+    e.target.value = '';
+  }
 });
 
 document.getElementById('searchName').addEventListener('input', function() {
@@ -1633,15 +1636,67 @@ function backupLatestMonthData() {
   showToast('最新の月をバックアップしました', 'success');
 }
 
-function restoreData(file) {
+function showRestoreDialog(file) {
+  const dialog = document.createElement('div');
+  dialog.className = 'ios-dialog';
+
+  dialog.innerHTML = `
+    <div class="ios-dialog-content">
+      <div class="ios-dialog-header">
+        <div class="ios-dialog-title">データ復元方法</div>
+        <div class="ios-dialog-message">復元方法を選択してください</div>
+      </div>
+      <div class="ios-dialog-buttons" style="flex-direction: column;">
+        <button class="ios-dialog-button primary" id="mergeRestoreBtn" style="border-bottom: 1px solid var(--border-primary); border-left: none;">統合</button>
+        <button class="ios-dialog-button" id="overwriteRestoreBtn" style="border-left: none;">上書き</button>
+        <button class="ios-dialog-button" id="cancelRestoreBtn" style="border-top: 1px solid var(--border-primary); border-left: none;">キャンセル</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeDialog = () => {
+    dialog.style.opacity = '0';
+    setTimeout(() => {
+      if (document.body.contains(dialog)) {
+        document.body.removeChild(dialog);
+      }
+    }, 300);
+  };
+
+  document.getElementById('mergeRestoreBtn').addEventListener('click', () => {
+    closeDialog();
+    restoreDataMerge(file);
+  });
+
+  document.getElementById('overwriteRestoreBtn').addEventListener('click', () => {
+    closeDialog();
+    restoreDataOverwrite(file);
+  });
+
+  document.getElementById('cancelRestoreBtn').addEventListener('click', () => {
+    closeDialog();
+  });
+
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) {
+      closeDialog();
+    }
+  });
+}
+
+function restoreDataMerge(file) {
   const reader = new FileReader();
   reader.onload = function(event) {
     try {
-      const allTimeCards = JSON.parse(event.target.result);
-      if (allTimeCards && typeof allTimeCards === 'object') {
-        localStorage.setItem('timeCards', JSON.stringify(allTimeCards));
+      const newData = JSON.parse(event.target.result);
+      if (newData && typeof newData === 'object') {
+        const existingData = JSON.parse(localStorage.getItem('timeCards') || '{}');
+        const mergedData = mergeTimeCards(existingData, newData);
+        localStorage.setItem('timeCards', JSON.stringify(mergedData));
         displayTimeCards();
-        showToast('データを復元しました', 'success');
+        showToast('データを統合しました', 'success');
       } else {
         showToast('無効なデータ形式です', 'error');
       }
@@ -1650,4 +1705,53 @@ function restoreData(file) {
     }
   };
   reader.readAsText(file);
+}
+
+function restoreDataOverwrite(file) {
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    try {
+      const allTimeCards = JSON.parse(event.target.result);
+      if (allTimeCards && typeof allTimeCards === 'object') {
+        localStorage.setItem('timeCards', JSON.stringify(allTimeCards));
+        displayTimeCards();
+        showToast('データを上書きしました', 'success');
+      } else {
+        showToast('無効なデータ形式です', 'error');
+      }
+    } catch (e) {
+      showToast('データの読み込み中にエラーが発生しました', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function mergeTimeCards(existingData, newData) {
+  const merged = JSON.parse(JSON.stringify(existingData));
+
+  for (let name in newData) {
+    if (!merged[name]) {
+      merged[name] = {};
+    }
+
+    for (let date in newData[name]) {
+      if (!merged[name][date]) {
+        merged[name][date] = [];
+      }
+
+      newData[name][date].forEach(newCard => {
+        const isDuplicate = merged[name][date].some(existingCard =>
+          existingCard.checkIn === newCard.checkIn &&
+          existingCard.checkOut === newCard.checkOut &&
+          existingCard.isPaidLeave === newCard.isPaidLeave
+        );
+
+        if (!isDuplicate) {
+          merged[name][date].push(newCard);
+        }
+      });
+    }
+  }
+
+  return merged;
 }
