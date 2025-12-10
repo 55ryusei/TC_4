@@ -1707,15 +1707,6 @@ function exportToExcelWithOptions(startDate, endDate, workType, exportType, sele
       ]);
     }
 
-    // 50行目まで空行で埋める
-    const currentRows = sheetData.length;
-    const targetRow = 49; // 50行目（0始まりなので49）
-    for (let i = currentRows; i < targetRow; i++) {
-      sheetData.push([]);
-    }
-    // 50行目のG列に屋号を配置
-    sheetData.push(["", "", "", "", "", "", "© SwiftRaptor"]);
-
     // ワークシートを作成して追加
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
