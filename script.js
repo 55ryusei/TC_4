@@ -399,7 +399,8 @@ function getMonthPeriod(dateString) {
   const day = date.getDate();
   let startYear = date.getFullYear();
   let startMonth = date.getMonth();
-  if (day < 11) {
+  // 10日以前の場合は前月の期間に含まれる
+  if (day <= 10) {
     startMonth--;
     if (startMonth < 0) {
       startMonth = 11;
@@ -423,7 +424,8 @@ function getLatestMonthPeriod() {
   const day = today.getDate();
   let startYear = today.getFullYear();
   let startMonth = today.getMonth();
-  if (day < 11) {
+  // 10日以前の場合は前月の期間に含まれる
+  if (day <= 10) {
     startMonth--;
     if (startMonth < 0) {
       startMonth = 11;
@@ -446,24 +448,46 @@ function getLatestMonthPeriod() {
 function getLatestDataPeriod() {
   const allTimeCards = JSON.parse(localStorage.getItem('timeCards') || '{}');
   let latestDate = null;
-  
+
+  console.log('データ全体:', allTimeCards);
+
   // すべてのデータから最新の日付を探す
   for (let name in allTimeCards) {
+    console.log(`${name}のデータ:`, allTimeCards[name]);
     for (let date in allTimeCards[name]) {
-      const d = new Date(date);
-      if (!latestDate || d > latestDate) {
-        latestDate = d;
+      console.log('日付文字列:', date);
+      // 日付文字列をパース（YYYY-MM-DD形式を想定）
+      const d = new Date(date + 'T00:00:00');
+      console.log('パースした日付:', d, 'isValid:', !isNaN(d.getTime()));
+      if (!isNaN(d.getTime())) {  // 有効な日付かチェック
+        console.log('比較: latestDate=', latestDate, 'd=', d, 'd > latestDate:', d > latestDate);
+        if (!latestDate || d > latestDate) {
+          console.log('★最新日付を更新します:', d);
+          latestDate = d;
+          console.log('★更新後のlatestDate:', latestDate);
+        }
       }
     }
   }
-  
+
   // データがない場合は今日の日付を使用
   if (!latestDate) {
+    console.warn('データが見つかりませんでした。今日の日付を使用します。');
     latestDate = new Date();
   }
-  
+
+  console.log('最終的な最新のデータ日付:', latestDate);
+  console.log('最新のデータ日付の日にち:', latestDate.getDate());
+
   // 最新の日付を基準に期間を計算
-  return getMonthPeriod(latestDate.toISOString().slice(0, 10));
+  const dateString = latestDate.toISOString().slice(0, 10);
+  console.log('getMonthPeriodに渡す文字列:', dateString);
+  const period = getMonthPeriod(dateString);
+  console.log('計算された期間:', period);
+  console.log('期間の開始:', period.start);
+  console.log('期間の終了:', period.end);
+  console.log('開始月:', period.start.getMonth() + 1, '終了月:', period.end.getMonth() + 1);
+  return period;
 }
 /***********************************************
  * ドロップダウン機能
@@ -1250,26 +1274,58 @@ function showExportDialog() {
   const dialog = document.createElement('div');
   dialog.id = 'exportDialog';
   dialog.className = 'ios-dialog';
-  
+
+  // Get all user names from localStorage
+  const allTimeCards = JSON.parse(localStorage.getItem('timeCards') || '{}');
+  const userNames = Object.keys(allTimeCards).sort();
+
+  // Generate checkboxes HTML for each user (all checked by default)
+  let userCheckboxesHTML = '';
+  if (userNames.length > 0) {
+    userCheckboxesHTML = `
+      <div style="margin-top: 20px;">
+        <label style="display: block; margin-bottom: 6px; font-size: 0.9em; color: var(--text-secondary);">エクスポートする従業員</label>
+        <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-primary); border-radius: 8px; padding: 12px; background: var(--bg-card);">
+          <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-primary);">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="selectAllUsers" checked style="margin-right: 8px; cursor: pointer;">
+              <span style="font-weight: bold;">すべて選択</span>
+            </label>
+          </div>
+          ${userNames.map(name => `
+            <div style="margin-bottom: 6px;">
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" class="userCheckbox" value="${name}" checked style="margin-right: 8px; cursor: pointer;">
+                <span>${name}</span>
+              </label>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   // データの最新期間を取得（今日の日付ではなく）
   const { start, end } = getLatestDataPeriod();
   const startDateStr = start.toISOString().slice(0, 10);
   const endDateStr = end.toISOString().slice(0, 10);
-  
+
   dialog.innerHTML = `
-    <div class="ios-dialog-content" style="width: 400px; max-width: 90vw;">
+    <div class="ios-dialog-content" style="width: 450px; max-width: 90vw;">
       <div class="ios-dialog-header" style="text-align: left;">
         <div class="ios-dialog-title">エクスポート設定</div>
-        
+
+        ${userCheckboxesHTML}
+
         <div style="margin-top: 20px;">
           <label style="display: block; margin-bottom: 6px; font-size: 0.9em; color: var(--text-secondary);">エクスポート期間</label>
           <select id="exportPeriodType" style="width: 100%; padding: 10px; border: 1px solid var(--border-primary); border-radius: 8px; font-size: 1em; background: var(--bg-card); color: var(--text-primary);">
             <option value="all">すべてのデータ</option>
-            <option value="latest">最新の月（11日～翌月10日）</option>
+            <option value="latest" selected>最新の月（11日～翌月10日）</option>
             <option value="custom">期間指定</option>
           </select>
         </div>
-        
+
         <div id="customPeriodFields" style="display: none; margin-top: 16px;">
           <div style="margin-bottom: 12px;">
             <label style="display: block; margin-bottom: 6px; font-size: 0.9em; color: var(--text-secondary);">開始日</label>
@@ -1280,7 +1336,22 @@ function showExportDialog() {
             <input type="date" id="exportEndDate" value="${endDateStr}" style="width: 100%; padding: 10px; border: 1px solid var(--border-primary); border-radius: 8px; font-size: 1em; background: var(--bg-card); color: var(--text-primary);">
           </div>
         </div>
-        
+
+        <div style="margin-top: 16px;">
+          <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 0.9em;">
+            <input type="checkbox" id="enableRaiseDate" style="margin-right: 8px; cursor: pointer;">
+            <span>昇給日で分割する</span>
+          </label>
+        </div>
+
+        <div id="raiseDateFields" style="display: none; margin-top: 12px;">
+          <label style="display: block; margin-bottom: 6px; font-size: 0.9em; color: var(--text-secondary);">昇給日</label>
+          <input type="date" id="raiseDate" style="width: 100%; padding: 10px; border: 1px solid var(--border-primary); border-radius: 8px; font-size: 1em; background: var(--bg-card); color: var(--text-primary);">
+          <div style="margin-top: 6px; font-size: 0.8em; color: var(--text-secondary);">
+            指定した日付で期間を分割し、別々に集計します
+          </div>
+        </div>
+
 <div style="margin-top: 16px;">
           <label style="display: block; margin-bottom: 6px; font-size: 0.9em; color: var(--text-secondary);">業務内容</label>
           <select id="exportWorkType" style="width: 100%; padding: 10px; border: 1px solid var(--border-primary); border-radius: 8px; font-size: 1em; background: var(--bg-card); color: var(--text-primary);">
@@ -1289,16 +1360,40 @@ function showExportDialog() {
           </select>
         </div>
       </div>
-      
+
       <div class="ios-dialog-buttons">
         <button class="ios-dialog-button" onclick="hideExportDialog()">キャンセル</button>
         <button class="ios-dialog-button primary" id="exportExecuteBtn">エクスポート</button>
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(dialog);
-  
+
+  // Add event listeners for the checkboxes
+  const selectAllCheckbox = document.getElementById('selectAllUsers');
+  const userCheckboxes = document.querySelectorAll('.userCheckbox');
+
+  if (selectAllCheckbox) {
+    // "Select All" checkbox controls all individual checkboxes
+    selectAllCheckbox.addEventListener('change', function() {
+      userCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+      });
+    });
+
+    // Individual checkboxes update "Select All" state
+    userCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const allChecked = Array.from(userCheckboxes).every(cb => cb.checked);
+        const someChecked = Array.from(userCheckboxes).some(cb => cb.checked);
+
+        selectAllCheckbox.checked = allChecked;
+        selectAllCheckbox.indeterminate = someChecked && !allChecked;
+      });
+    });
+  }
+
   document.getElementById('exportPeriodType').addEventListener('change', function() {
     const customFields = document.getElementById('customPeriodFields');
     if (this.value === 'custom') {
@@ -1307,7 +1402,16 @@ function showExportDialog() {
       customFields.style.display = 'none';
     }
   });
-  
+
+  document.getElementById('enableRaiseDate').addEventListener('change', function() {
+    const raiseDateFields = document.getElementById('raiseDateFields');
+    if (this.checked) {
+      raiseDateFields.style.display = 'block';
+    } else {
+      raiseDateFields.style.display = 'none';
+    }
+  });
+
   // エクスポートボタンのイベントリスナーを追加
 // エクスポートボタンのイベントリスナーを追加
   document.getElementById('exportExecuteBtn').addEventListener('click', function() {
@@ -1316,10 +1420,10 @@ function showExportDialog() {
     const workTypeValue = document.getElementById('exportWorkType').value;
     console.log('Button clicked - Period:', periodTypeValue, 'WorkType:', workTypeValue);
     console.log('WorkType element:', document.getElementById('exportWorkType'));
-    
+
     performExport();
   });
-  
+
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) {
       hideExportDialog();
@@ -1342,26 +1446,44 @@ function hideExportDialog() {
  * Excelエクスポート実行
  ****************************************************/
 function performExport() {
+  // Get selected users from checkboxes
+  const userCheckboxes = document.querySelectorAll('.userCheckbox:checked');
+  const selectedUsers = Array.from(userCheckboxes).map(cb => cb.value);
+
+  // Validate that at least one user is selected
+  if (selectedUsers.length === 0) {
+    hideExportDialog();
+    setTimeout(() => showToast('少なくとも1人の従業員を選択してください', 'warning'), 100);
+    return;
+  }
+
   // 要素を直接取得
   const periodSelect = document.getElementById('exportPeriodType');
   const workTypeSelect = document.getElementById('exportWorkType');
-  
+
   console.log('periodSelect element:', periodSelect);
   console.log('workTypeSelect element:', workTypeSelect);
-  
+
   if (!periodSelect || !workTypeSelect) {
     console.error('Elements not found!');
-    showToast('エラーが発生しました', 'error');
+    hideExportDialog();
+    setTimeout(() => showToast('エラーが発生しました', 'error'), 100);
     return;
   }
-  
+
   const exportType = periodSelect.value;
   const exportWorkType = workTypeSelect.value;
-  
+
+  // 昇給日の設定を取得
+  const enableRaiseDate = document.getElementById('enableRaiseDate').checked;
+  const raiseDate = enableRaiseDate ? document.getElementById('raiseDate').value : null;
+
   console.log('取得した値 - exportType:', exportType, 'exportWorkType:', exportWorkType);
-  
+  console.log('選択された従業員:', selectedUsers);
+  console.log('昇給日設定 - enabled:', enableRaiseDate, 'date:', raiseDate);
+
   let startDate, endDate;
-  
+
   if (exportType === 'all') {
     // すべてのデータをエクスポート（期間制限なし）
     startDate = new Date('1900-01-01');
@@ -1376,135 +1498,191 @@ function performExport() {
   } else {
     const startInput = document.getElementById('exportStartDate').value;
     const endInput = document.getElementById('exportEndDate').value;
-    
+
+    console.log('期間指定 - startInput:', startInput, 'endInput:', endInput);
+
     if (!startInput || !endInput) {
-      showToast('開始日と終了日を入力してください', 'warning');
+      console.error('日付が未入力: startInput=', startInput, 'endInput=', endInput);
+      hideExportDialog();
+      setTimeout(() => showToast('開始日と終了日を入力してください', 'warning'), 100);
       return;
     }
-    
+
     startDate = new Date(startInput);
     endDate = new Date(endInput);
-    
+
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      showToast('有効な日付を入力してください', 'warning');
+      hideExportDialog();
+      setTimeout(() => showToast('有効な日付を入力してください', 'warning'), 100);
       return;
     }
-    
+
     if (startDate > endDate) {
-      showToast('開始日は終了日より前である必要があります', 'warning');
+      hideExportDialog();
+      setTimeout(() => showToast('開始日は終了日より前である必要があります', 'warning'), 100);
       return;
     }
 }
-  
+
+  // 昇給日のバリデーション
+  if (enableRaiseDate && !raiseDate) {
+    hideExportDialog();
+    setTimeout(() => showToast('昇給日を入力してください', 'warning'), 100);
+    return;
+  }
+
+  // 昇給日が期間内にあるかチェック
+  if (enableRaiseDate && raiseDate) {
+    const raiseDateObj = new Date(raiseDate);
+    if (raiseDateObj <= startDate || raiseDateObj >= endDate) {
+      hideExportDialog();
+      setTimeout(() => showToast('昇給日は開始日と終了日の間の日付を指定してください', 'warning'), 100);
+      return;
+    }
+  }
+
   // ダイアログを閉じる前に値を保存
   const finalExportType = exportType;
   const finalWorkType = exportWorkType;
-  
-  console.log('Exporting with:', { finalExportType, finalWorkType, startDate, endDate });
-  
+  const finalSelectedUsers = selectedUsers;
+  const finalRaiseDate = raiseDate ? new Date(raiseDate) : null;
+
+  console.log('Exporting with:', { finalExportType, finalWorkType, startDate, endDate, finalSelectedUsers, finalRaiseDate });
+
   hideExportDialog();
-  exportToExcelWithOptions(startDate, endDate, finalWorkType, finalExportType);
+  exportToExcelWithOptions(startDate, endDate, finalWorkType, finalExportType, finalSelectedUsers, finalRaiseDate);
 }
 
-function exportToExcelWithOptions(startDate, endDate, workType, exportType) {
+function exportToExcelWithOptions(startDate, endDate, workType, exportType, selectedUsers, raiseDate = null) {
   const allTimeCards = JSON.parse(localStorage.getItem('timeCards') || '{}');
   const workbook = XLSX.utils.book_new();
   let sheetCount = 0;
-  
+
   // 実際にエクスポートされるデータの日付範囲を追跡
   let actualMinDate = null;
   let actualMaxDate = null;
 
-// 終了日を23:59:59に設定して、その日のデータを確実に含める
+  // 終了日を23:59:59に設定して、その日のデータを確実に含める
   const adjustedEndDate = new Date(endDate);
   adjustedEndDate.setHours(23, 59, 59, 999);
 
-for (let name in allTimeCards) {
-    const periods = {};
-    
-    for (let date in allTimeCards[name]) {
-      const d = new Date(date);
-      if (d >= startDate && d <= adjustedEndDate) {
-        // 実際の最小・最大日付を更新
-        if (!actualMinDate || d < actualMinDate) {
-          actualMinDate = d;
-        }
-if (!actualMaxDate || d > actualMaxDate) {
-          actualMaxDate = d;
-        }
-        
-        // 日付指定エクスポートの場合は期間で分けず、全体を1つのキーにまとめる
-        let periodKey;
-        if (exportType === 'custom') {
-          periodKey = 'custom_period';
-        } else {
-          const period = getMonthPeriod(date);
-          periodKey = period.start.toISOString().slice(0,10) + "_" + period.end.toISOString().slice(0,10);
-        }
+  // 昇給日が指定されている場合、期間を2つに分割
+  let periods = [];
+  if (raiseDate) {
+    const raiseDateCopy = new Date(raiseDate);
+    const beforeRaiseDateEnd = new Date(raiseDate);
+    beforeRaiseDateEnd.setDate(beforeRaiseDateEnd.getDate() - 1);
+    beforeRaiseDateEnd.setHours(23, 59, 59, 999);
 
-        if (!periods[periodKey]) {
-          periods[periodKey] = [];
-        }
-        allTimeCards[name][date].forEach(card => {
-          if (card && card.checkIn) {
-            const checkOutTime = card.checkOut || '未登録';
-            let totalHours = 0;
-            let earlyMorning = 0;
-            let evening = 0;
-            
-            if (card.checkOut) {
-              totalHours = parseFloat(calculateTimeDifference(card.checkIn, card.checkOut));
-              earlyMorning = parseFloat(calculateEarlyMorningTime(card.checkIn, card.checkOut));
-              evening = parseFloat(calculateEveningTime(card.checkIn, card.checkOut));
-            }
-            
-            periods[periodKey].push({
-              date,
-              checkIn: card.checkIn,
-              checkOut: checkOutTime,
-              totalHours,
-              earlyMorning,
-              evening,
-              isPaidLeave: card.isPaidLeave
-            });
-          }
-        });
-      }
+    periods = [
+      { start: startDate, end: beforeRaiseDateEnd, label: '昇給前' },
+      { start: raiseDateCopy, end: adjustedEndDate, label: '昇給後' }
+    ];
+  } else {
+    periods = [{ start: startDate, end: adjustedEndDate, label: '' }];
+  }
+
+  // 各従業員のデータを処理
+  for (let name in allTimeCards) {
+    // Filter: only process data for selected users
+    if (!selectedUsers.includes(name)) {
+      continue;
     }
 
-for (let periodKey in periods) {
-      let sheetName;
-      
-      if (exportType === 'custom') {
-        // 日付指定の場合はシンプルな名前
-        sheetName = name;
-      } else {
-        // 11日～10日の期間の場合は従来通り
-        const [startStr, endStr] = periodKey.split("_");
-        const startPeriod = new Date(startStr);
-        const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-        sheetName = name + monthNames[startPeriod.getMonth()];
+    // シート名を決定
+    let sheetName = name;
+    if (exportType !== 'custom' && !raiseDate) {
+      // 11日～10日の期間の場合はエクスポート期間の開始月を使用（昇給日がない場合のみ）
+      const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+      sheetName = name + monthNames[startDate.getMonth()];
+    }
+
+    const sheetData = [];
+
+    // ヘッダー行：名前と業務内容
+    let headerText = `名前: ${name} (${workType})`;
+    sheetData.push([headerText]);
+
+    // 昇給日がない場合のみ列ヘッダーを追加
+    if (!raiseDate) {
+      sheetData.push(["日付","出勤時間","退勤時間","合計時間","朝夕勤務","通常合計","勤務種別"]);
+    }
+
+    // 昇給日対応：各期間ごとにデータを収集して出力
+    for (let periodIndex = 0; periodIndex < periods.length; periodIndex++) {
+      const { start: periodStart, end: periodEnd, label: periodLabel } = periods[periodIndex];
+      const periodData = [];
+
+      for (let date in allTimeCards[name]) {
+        const d = new Date(date);
+
+        // この日付が現在の期間内にあるかチェック
+        if (d >= periodStart && d <= periodEnd) {
+          // 実際の最小・最大日付を更新
+          if (!actualMinDate || d < actualMinDate) {
+            actualMinDate = d;
+          }
+          if (!actualMaxDate || d > actualMaxDate) {
+            actualMaxDate = d;
+          }
+
+          allTimeCards[name][date].forEach(card => {
+            if (card && card.checkIn) {
+              const checkOutTime = card.checkOut || '未登録';
+              let totalHours = 0;
+              let earlyMorning = 0;
+              let evening = 0;
+
+              if (card.checkOut) {
+                totalHours = parseFloat(calculateTimeDifference(card.checkIn, card.checkOut));
+                earlyMorning = parseFloat(calculateEarlyMorningTime(card.checkIn, card.checkOut));
+                evening = parseFloat(calculateEveningTime(card.checkIn, card.checkOut));
+              }
+
+              periodData.push({
+                date,
+                checkIn: card.checkIn,
+                checkOut: checkOutTime,
+                totalHours,
+                earlyMorning,
+                evening,
+                isPaidLeave: card.isPaidLeave
+              });
+            }
+          });
+        }
       }
-const sheetData = [];
-            
-// 名前の横に業務内容を表示（exportWorkTypeの値をそのまま使用）
-sheetData.push([`名前: ${name} (${workType})`]);
-sheetData.push(["日付","出勤時間","退勤時間","合計時間","朝夕勤務","通常合計","勤務種別"]);
 
-      let overallTotalDay = 0;
-      let overallMorningEvening = 0;
-      let overallNormal = 0;
+      // この期間にデータがない場合はスキップ
+      if (periodData.length === 0) {
+        continue;
+      }
 
-      periods[periodKey].sort((a,b) => new Date(a.date) - new Date(b.date));
+      // 期間ラベルがある場合（昇給日設定時）は区切り行を追加
+      if (periodLabel) {
+        const startStr = `${periodStart.getMonth() + 1}/${periodStart.getDate()}`;
+        const endStr = `${periodEnd.getMonth() + 1}/${periodEnd.getDate()}`;
+        sheetData.push([]);
+        sheetData.push([`■ ${periodLabel} (${startStr}～${endStr})`]);
+        sheetData.push(["日付","出勤時間","退勤時間","合計時間","朝夕勤務","通常合計","勤務種別"]);
+      }
 
-      periods[periodKey].forEach(rec => {
+      let periodTotalDay = 0;
+      let periodMorningEvening = 0;
+      let periodNormal = 0;
+
+      // データを日付順にソート
+      periodData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 各レコードを出力
+      periodData.forEach(rec => {
         const morningEvening = rec.earlyMorning + rec.evening;
         const normalHours = rec.totalHours - morningEvening;
-        
+
         if (rec.checkOut !== '未登録') {
-          overallTotalDay += rec.totalHours;
-          overallMorningEvening += morningEvening;
-          overallNormal += normalHours;
+          periodTotalDay += rec.totalHours;
+          periodMorningEvening += morningEvening;
+          periodNormal += normalHours;
         }
 
         sheetData.push([
@@ -1518,19 +1696,30 @@ sheetData.push(["日付","出勤時間","退勤時間","合計時間","朝夕勤
         ]);
       });
 
+      // 期間ごとの小計行
       sheetData.push([]);
       sheetData.push([
-        "合計","","",
-        overallTotalDay.toFixed(2),
-        overallMorningEvening.toFixed(2),
-        overallNormal.toFixed(2),
+        periodLabel ? `【${periodLabel}合計】` : "合計","","",
+        periodTotalDay.toFixed(2),
+        periodMorningEvening.toFixed(2),
+        periodNormal.toFixed(2),
         ""
       ]);
-
-      const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-      sheetCount++;
     }
+
+    // 50行目まで空行で埋める
+    const currentRows = sheetData.length;
+    const targetRow = 49; // 50行目（0始まりなので49）
+    for (let i = currentRows; i < targetRow; i++) {
+      sheetData.push([]);
+    }
+    // 50行目のG列に屋号を配置
+    sheetData.push(["", "", "", "", "", "", "© SwiftRaptor"]);
+
+    // ワークシートを作成して追加
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    sheetCount++;
   }
 
   if (sheetCount === 0) {
